@@ -68,21 +68,13 @@ def create_user_table(conn):
     except Exception as e:
         print(f"Error: {e}")
 
-def insert_user_data(conn, input_file_path):
-    with conn.cursor() as cursor, open(input_file_path, 'r', encoding='utf-8') as file:
-        reader = csv.reader(file)
-        headers = next(reader)  # Ignorer la première ligne si c'est un header
-        
-        insert_query = f"""
-        INSERT INTO {table_name} ({', '.join(headers)})
-        VALUES ({', '.join(['%s' for _ in headers])})
-        ON CONFLICT DO NOTHING;
-        """
-
-        for row in reader:
-            # Remplace les chaînes vides par None (NULL dans PostgreSQL)
-            row = [None if value == '' else value for value in row]
-            cursor.execute(insert_query, row)
+def insert_user_data(conn, input_file_path, table_name):
+    with conn.cursor() as cursor:
+        with open(input_file_path, 'r', encoding='utf-8') as file:
+            next(file)  # Ignorer l'en-tête si le CSV en a un
+            cursor.copy_expert(f"""
+                COPY {table_name} FROM STDIN WITH CSV NULL '' DELIMITER ',';
+            """, file)
 
     conn.commit()
     
