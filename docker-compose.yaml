@@ -1,56 +1,45 @@
 services:
-  postgres-db:
-    image: postgres:latest
-    container_name: postgres-db
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: dataplatform
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    restart: always
     ports:
       - "5432:5432"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    restart: unless-stopped
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres -d dataplatform" ]
-      interval: 10s
-      retries: 5
-      start_period: 30s
-      timeout: 10s
-  minio:
-    image: minio/minio:latest
-    container_name: minio
     environment:
-      MINIO_ROOT_USER: miniouser
-      MINIO_ROOT_PASSWORD: miniopassword
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: accidents
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  minio:
+    image: minio/minio
+    container_name: minio-crash
+    restart: always
     ports:
       - "9000:9000"
-      - "9001:9001" # MinIO Console
-    command: server /data --console-address ":9001"
-    volumes:
-      - minio-data:/data
-    restart: unless-stopped
-
-
-
-  app:
-    build:
-      context: .
-    volumes:
-      - type: bind
-        source: ./utils
-        target: /app/utils
-      - type: bind
-        source: ./data
-        target: /app/data
+      - "9001:9001"
     environment:
-      - DATABASE_URL=postgresql://postgres:password@postgres-db:5432/vehicule
+      MINIO_ROOT_USER: myminioadmin
+      MINIO_ROOT_PASSWORD: mysecurepassword
+    volumes:
+      - minio_data:/data
+    command: server --console-address ":9001" /data
+
+  data_loader:
+    build: .
+    container_name: data_loader
+    restart: on-failure
     depends_on:
-      postgres-db:
-        condition: service_healthy
+      - postgres
+    environment:
+      DATABASE_URL: postgresql://user:password@postgres:5432/accidents
+    volumes:
+      - ./data:/app/data
+      - ./wait-for-it.sh:/wait-for-it.sh
+    command: ["python", "/app/insert_data.py"]
 
 volumes:
-  postgres-data:
-  minio-data:
-
+  pgdata:
+  minio_data:
 
